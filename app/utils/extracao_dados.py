@@ -102,3 +102,12 @@ def extracao_dados():
 
     return df_carnes
 
+def min_max_prices():
+    
+    # Obtendo os preços máximos e mínimos do dia atual
+    try:
+        df = extracao_dados()
+        preco_min, preco_max = df.preco_kg.min(), df.preco_kg.max()
+        return preco_min, preco_max
+    except:
+        return None, None
