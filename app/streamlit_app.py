@@ -1,6 +1,7 @@
 # LIBS
 import pandas as pd
 import streamlit as st
+from bs4 import BeautifulSoup
 from utils.extracao_dados import extracao_dados, min_max_prices
 
 # CONFIGURACOES STREAMLIT
