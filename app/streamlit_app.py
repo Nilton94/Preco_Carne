@@ -63,6 +63,8 @@ if st.session_state.atualizar:
     # col2.markdown(f'#### Mediana Pollo: {df_pollo}')
     # col3.markdown(f'#### Mediana Cerdo: {df_cerdo}')
 
+    # USAR st.metric
+
     st.dataframe(
         data = df,
         use_container_width = True,
@@ -70,7 +72,70 @@ if st.session_state.atualizar:
     )
 
 
-# CALCULADORA
-# st.markdown(
-#     '## Calculadora'
-# )
+if 'items' not in st.session_state:
+    st.session_state['items'] = []
+
+with st.expander('Calculadora'):
+
+    # WIDGETS
+    colu1, colu2, colu3 = st.columns([2,2,2])
+    colu1.button(
+        label = 'Incluir item na lista',
+        key = 'incluir_lista',
+        use_container_width = True
+    )
+    colu2.button(
+        label = 'Limpar lista',
+        key = 'limpar_lista',
+        use_container_width = True
+    )
+    colu3.button(
+        label = 'Calcular valor',
+        key = 'calcular_valor',
+        type = "primary",
+        use_container_width = True
+    )
+
+    st.selectbox(
+            label = 'Escolha o tipo de carne',
+            options = extracao_dados().nome_carne.sort_values().unique(),
+            key = 'selecionar_carne'
+    )
+    st.text_input(
+        label = 'Escolha a Quantidade (Kg)',
+        key = 'escolher_qtd'
+    )
+
+    # DADOS DE INPUT
+    if st.session_state.incluir_lista == True:
+        st.session_state['items'].append([
+            st.session_state.selecionar_carne, 
+            float(st.session_state.escolher_qtd.replace(',','.'))
+        ])
+
+    # DATAFRAME
+    st.markdown('Lista de items')
+    lista_df = (
+        pd.DataFrame(st.session_state['items'], columns = ['Nome','Quantidade (Kg)'])
+        .pipe(
+            lambda df: pd.merge(
+                left = df, 
+                right = extracao_dados(), 
+                left_on = 'Nome',
+                right_on = 'nome_carne'
+            )
+        )
+        .assign(Total = lambda df: df['Quantidade (Kg)'] * df.preco_kg)
+        .rename(columns = {'preco_kg':'Preço por Kg'})
+        [['Nome', 'Quantidade (Kg)', 'Preço por Kg', 'Total']]
+    )
+    st.dataframe(lista_df, hide_index = True)
+
+    # LIMPAR LISTA
+    if st.session_state.limpar_lista == True:
+        st.session_state['items'] = []
+
+    # CALCULAR VALOR
+    if st.session_state.calcular_valor == True:
+        valor_total = lista_df['Total'].sum().round(2)
+        st.markdown(f'Valor total a ser pago: \n$ {valor_total}')
