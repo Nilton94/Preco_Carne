@@ -91,14 +91,14 @@ def extracao_dados():
     )
 
     # SALVANDO COMO PARQUET
-    pq.write_to_dataset(
-        table = pa.Table.from_pandas(df_carnes),
-        root_path = os.path.join(os.getcwd(), 'data', 'bronze') if os.getcwd().__contains__('app') else os.path.join(os.getcwd(), 'app', 'data', 'bronze'),
-        partition_cols = ['ano','mes','dia'],
-        # partition_filename_cb = lambda x: '-'.join(x)+'.parquet', (Não funciona com o uso o use_legacy_dataset = False, que é necessário para usar o existing_data_behaviour)
-        existing_data_behavior = 'delete_matching',
-        use_legacy_dataset = False
-    )
+    # pq.write_to_dataset(
+    #     table = pa.Table.from_pandas(df_carnes),
+    #     root_path = os.path.join(os.getcwd(), 'data', 'bronze') if os.getcwd().__contains__('app') else os.path.join(os.getcwd(), 'app', 'data', 'bronze'),
+    #     partition_cols = ['ano','mes','dia'],
+    #     # partition_filename_cb = lambda x: '-'.join(x)+'.parquet', (Não funciona com o uso o use_legacy_dataset = False, que é necessário para usar o existing_data_behaviour)
+    #     existing_data_behavior = 'delete_matching',
+    #     use_legacy_dataset = False
+    # )
 
     return df_carnes
 
