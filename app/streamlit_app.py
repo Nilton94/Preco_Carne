@@ -1,8 +1,8 @@
 # LIBS
 import pandas as pd
 import streamlit as st
-from bs4 import BeautifulSoup
-from utils.extracao_dados import extracao_dados, min_max_prices
+from utils.extracao_dados import extracao_dados
+from utils.utils_streamlit import get_metrics, get_widgets
 
 # CONFIGURACOES STREAMLIT
 st.set_page_config(
@@ -14,68 +14,56 @@ st.set_page_config(
 
 )
 # WIDGETS
-st.sidebar.multiselect(
-    'Tipos de Carne',
-    options = ['carne-vacuna', 'pollo', 'cerdo', 'otras-carnes', 'achuras-y-menudencias', 'embutidos', 'elaborados', 'elaborados-premium'],
-    key = 'tipo_carnes'
-)
+get_widgets()
 
-preco_min, preco_max = min_max_prices()
-st.sidebar.slider(
-    'Faixa de preços (Kg)',
-    min_value = preco_min,
-    max_value = preco_max,
-    key = 'faixa_precos'
-)
-
-st.sidebar.button(
-    label = 'Atualizar dados',
-    key = 'atualizar'
-)
+# METRICAS
+get_metrics()
 
 # DADOS ATUALIZADOS
-st.markdown(
-    '## Dados Tabelados do Preço da Carne no Dia Atual'
-)
+if 'tabelados' not in st.session_state:
+    st.session_state['tabelados'] = []
 
-if st.session_state.atualizar:
-    # BASE
-    df = (
-        extracao_dados()
-        .pipe(
-            lambda df: df.loc[
-                (df.tipo_carne.isin(st.session_state.tipo_carnes))
-                & (df.preco_kg.between(preco_min, st.session_state.faixa_precos))
-            ]
+with st.expander('**Dados Tabelados do Preço da Carne no Dia Atual**'):
+
+    if st.session_state.atualizar or len(st.session_state['tabelados']) > 0:
+        # BASE
+        df = (
+            extracao_dados()
+            .pipe(
+                lambda df: df.loc[
+                    (df.tipo_carne.isin(st.session_state.tipo_carnes))
+                    & (df.preco_kg.between(st.session_state.faixa_precos[0], st.session_state.faixa_precos[1]))
+                ]
+            )
+            [['tipo_carne','nome_carne', 'moeda', 'preco_kg', 'data']]
         )
-        [['tipo_carne','nome_carne', 'moeda', 'preco_kg', 'data']]
-    )
+        st.session_state['tabelados'].append(df.to_dict(orient='list'))
 
-    # AGG
-    df_vacuna = df.loc[df.tipo_carne == 'carne-vacuna', 'preco_kg'].median()
-    df_pollo = df.loc[df.tipo_carne == 'pollo', 'preco_kg'].median()
-    df_cerdo = df.loc[df.tipo_carne == 'cerdo', 'preco_kg'].median()
+        # # AGG
+        # df_vacuna = df.loc[df.tipo_carne == 'carne-vacuna', 'preco_kg'].median()
+        # df_pollo = df.loc[df.tipo_carne == 'pollo', 'preco_kg'].median()
+        # df_cerdo = df.loc[df.tipo_carne == 'cerdo', 'preco_kg'].median()
 
-    # CARDS
-    # col1, col2, col3 = st.columns(3)
+        # # CARDS
+        # col1, col2, col3 = st.columns(3)
 
-    # col1.markdown(f'#### Mediana Vacuna: {df_vacuna}')
-    # col2.markdown(f'#### Mediana Pollo: {df_pollo}')
-    # col3.markdown(f'#### Mediana Cerdo: {df_cerdo}')
+        # col1.metric('Mediana Vacuna', value = df_vacuna)
+        # col2.metric('Mediana Pollo', value = df_pollo)
+        # col3.metric('Mediana Cerdo', value = df_cerdo)
 
-    # USAR st.metric
+        st.dataframe(
+            data = st.session_state['tabelados'][-1],
+            use_container_width = True,
+            hide_index = True
+        )
+    else:
+        st.write(':red[Selecione ao menos um tipo de carne!]')
 
-    st.dataframe(
-        data = df,
-        use_container_width = True,
-        hide_index = True
-    )
-
-
+# CALCULADORA
 if 'items' not in st.session_state:
     st.session_state['items'] = []
 
-with st.expander('Calculadora'):
+with st.expander('**Calculadora**'):
 
     # WIDGETS
     colu1, colu2, colu3 = st.columns([2,2,2])
