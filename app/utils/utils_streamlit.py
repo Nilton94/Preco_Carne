@@ -47,7 +47,7 @@ def get_metrics():
             path = os.path.join(os.getcwd(), 'data', 'bronze') if os.getcwd().__contains__('app') else os.path.join(os.getcwd(), 'app', 'data', 'bronze'),
             filters = [
                 ('ano', '=', (datetime.datetime.now().replace(day = 1).date() - datetime.timedelta(days=1)).year),
-                ('mes', '=', (datetime.datetime.now().replace(day = 1).date() - datetime.timedelta(days=0)).month) # AJUSTAR
+                ('mes', '=', (datetime.datetime.now().replace(day = 1).date() - datetime.timedelta(days=1)).month) # AJUSTAR
             ]
         )
         col1, col2, col3 = st.columns(3)
