@@ -1,7 +1,7 @@
 # LIBS
 import pandas as pd
 import streamlit as st
-from utils.extracao_dados import extracao_dados, min_max_prices
+from utils.extracao_dados import get_urls, extracao_dados, min_max_prices
 from utils.utils_numbers import millify
 import os, datetime
 
@@ -20,7 +20,7 @@ def get_widgets():
     # WIDGETS
     st.sidebar.multiselect(
         'Tipos de Carne',
-        options = ['carne-vacuna', 'pollo', 'cerdo', 'otras-carnes', 'achuras-y-menudencias', 'embutidos', 'elaborados', 'elaborados-premium'],
+        options = list(get_urls().keys()),
         key = 'tipo_carnes'
     )
 
@@ -60,15 +60,15 @@ def get_metrics():
 
                     v1.metric(
                         label = 'Tipos de carne',
-                        value = df.loc[df['tipo_carne'] == 'carne-vacuna', 'nome_carne'].count(),
-                        delta = float(df.loc[df['tipo_carne'] == 'carne-vacuna', 'nome_carne'].count() - df_last_month.loc[df_last_month['tipo_carne'] == 'carne-vacuna', 'nome_carne'].count()),
+                        value = df.loc[df['tipo_carne'] == 'carnes-vacunas', 'nome_carne'].count(),
+                        delta = float(df.loc[df['tipo_carne'] == 'carnes-vacunas', 'nome_carne'].count() - df_last_month.loc[df_last_month['tipo_carne'] == 'carnes-vacunas', 'nome_carne'].count()),
                         delta_color = 'normal'
                     )
 
                     v2.metric(
                         label = 'Valor Médio ($)',
-                        value = millify(round(df.loc[df['tipo_carne'] == 'carne-vacuna', 'preco_kg'].mean(), 2), precision=2),
-                        delta = millify((round(df.loc[df['tipo_carne'] == 'carne-vacuna', 'preco_kg'].mean(), 2) - round(df_last_month.loc[df_last_month['tipo_carne'] == 'carne-vacuna', 'preco_kg'].mean(), 2)),precision = 3),
+                        value = millify(round(df.loc[df['tipo_carne'] == 'carnes-vacunas', 'preco_kg'].mean(), 2), precision=2),
+                        delta = millify((round(df.loc[df['tipo_carne'] == 'carnes-vacunas', 'preco_kg'].mean(), 2) - round(df_last_month.loc[df_last_month['tipo_carne'] == 'carnes-vacunas', 'preco_kg'].mean(), 2)), precision = 3),
                         delta_color = 'inverse'
                     )
 
@@ -77,7 +77,7 @@ def get_metrics():
                         value = millify(
                             (
                                 df
-                                .loc[df['tipo_carne'] == 'carne-vacuna', :]
+                                .loc[df['tipo_carne'] == 'carnes-vacunas', :]
                                 .sort_values('preco_kg', ascending = True)
                                 .reset_index(drop = True)
                                 .to_dict(orient='records')
@@ -88,7 +88,7 @@ def get_metrics():
                         delta = millify(
                             (
                                 df.loc[df['tipo_carne'] == 'cerdo', :].sort_values('preco_kg', ascending = True).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg']
-                                - df_last_month.loc[df_last_month['tipo_carne'] == 'cerdo', :].sort_values('preco_kg', ascending = True).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg']
+                                - df_last_month.loc[df_last_month['tipo_carne'] == 'cerdo', :].sort_values('preco_kg', ascending = True).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg'] if df_last_month.shape[0] > 0 else 0
                             ),
                             precision=3
                         ),
@@ -100,7 +100,7 @@ def get_metrics():
                         value = millify(
                             (
                                 df
-                                .loc[df['tipo_carne'] == 'carne-vacuna', :]
+                                .loc[df['tipo_carne'] == 'carnes-vacunas', :]
                                 .sort_values('preco_kg', ascending = False)
                                 .reset_index(drop = True)
                                 .to_dict(orient='records')
@@ -110,8 +110,8 @@ def get_metrics():
                         ),
                         delta = millify(
                             (
-                                df.loc[df['tipo_carne'] == 'carne-vacuna', :].sort_values('preco_kg', ascending = False).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg']
-                                - df_last_month.loc[df_last_month['tipo_carne'] == 'carne-vacuna', :].sort_values('preco_kg', ascending = False).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg']
+                                df.loc[df['tipo_carne'] == 'carnes-vacunas', :].sort_values('preco_kg', ascending = False).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg']
+                                - df_last_month.loc[df_last_month['tipo_carne'] == 'carnes-vacunas', :].sort_values('preco_kg', ascending = False).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg'] if df_last_month.shape[0] > 0 else 0
                             ),
                             precision=3
                         ),
@@ -153,7 +153,7 @@ def get_metrics():
                         delta = millify(
                             (
                                 df.loc[df['tipo_carne'] == 'pollo', :].sort_values('preco_kg', ascending = True).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg']
-                                - df_last_month.loc[df_last_month['tipo_carne'] == 'pollo', :].sort_values('preco_kg', ascending = True).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg']
+                                - df_last_month.loc[df_last_month['tipo_carne'] == 'pollo', :].sort_values('preco_kg', ascending = True).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg'] if df_last_month.shape[0] > 0 else 0
                             ),
                             precision=3
                         ),
@@ -173,7 +173,7 @@ def get_metrics():
                         delta = millify(
                             (
                                 df.loc[df['tipo_carne'] == 'cerdo', :].sort_values('preco_kg', ascending = False).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg']
-                                - df_last_month.loc[df_last_month['tipo_carne'] == 'cerdo', :].sort_values('preco_kg', ascending = False).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg']
+                                - df_last_month.loc[df_last_month['tipo_carne'] == 'cerdo', :].sort_values('preco_kg', ascending = False).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg'] if df_last_month.shape[0] > 0 else 0
                             ),
                             precision=3
                         ),
@@ -215,7 +215,7 @@ def get_metrics():
                         delta = millify(
                             (
                                 df.loc[df['tipo_carne'] == 'cerdo', :].sort_values('preco_kg', ascending = True).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg']
-                                - df_last_month.loc[df_last_month['tipo_carne'] == 'cerdo', :].sort_values('preco_kg', ascending = True).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg']
+                                - df_last_month.loc[df_last_month['tipo_carne'] == 'cerdo', :].sort_values('preco_kg', ascending = True).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg'] if df_last_month.shape[0] > 0 else 0
                             ),
                             precision=3
                         ),
@@ -238,7 +238,7 @@ def get_metrics():
                         delta = millify(
                             (
                                 df.loc[df['tipo_carne'] == 'cerdo', :].sort_values('preco_kg', ascending = False).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg']
-                                - df_last_month.loc[df_last_month['tipo_carne'] == 'cerdo', :].sort_values('preco_kg', ascending = False).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg']
+                                - df_last_month.loc[df_last_month['tipo_carne'] == 'cerdo', :].sort_values('preco_kg', ascending = False).reset_index(drop = True).to_dict(orient='records')[0]['preco_kg'] if df_last_month.shape[0] > 0 else 0
                             ),
                             precision=3
                         ),
@@ -264,21 +264,12 @@ def get_table():
                         & (df.preco_kg.between(st.session_state.faixa_precos[0], st.session_state.faixa_precos[1]))
                     ]
                 )
-                [['tipo_carne','nome_carne', 'moeda', 'preco_kg', 'data']]
+                .assign(
+                    preco_kg_brl=lambda df: round(df['preco_kg'] / df['cambio_ars_brl'], 2)
+                )
+                [['tipo_carne','nome_carne', 'moeda', 'preco_kg', 'preco_kg_brl', 'data']]
             )
             st.session_state['tabelados'].append(df.to_dict(orient='list'))
-
-            # # AGG
-            # df_vacuna = df.loc[df.tipo_carne == 'carne-vacuna', 'preco_kg'].median()
-            # df_pollo = df.loc[df.tipo_carne == 'pollo', 'preco_kg'].median()
-            # df_cerdo = df.loc[df.tipo_carne == 'cerdo', 'preco_kg'].median()
-
-            # # CARDS
-            # col1, col2, col3 = st.columns(3)
-
-            # col1.metric('Mediana Vacuna', value = df_vacuna)
-            # col2.metric('Mediana Pollo', value = df_pollo)
-            # col3.metric('Mediana Cerdo', value = df_cerdo)
 
             st.dataframe(
                 data = st.session_state['tabelados'][-1],
@@ -342,9 +333,18 @@ def get_calc():
                     right_on = 'nome_carne'
                 )
             )
-            .assign(Total = lambda df: df['Quantidade (Kg)'] * df.preco_kg)
-            .rename(columns = {'preco_kg':'Preço por Kg'})
-            [['Nome', 'Quantidade (Kg)', 'Preço por Kg', 'Total']]
+            .assign(
+                total_ars = lambda df: df['Quantidade (Kg)'] * df.preco_kg,
+                total_brl = lambda df: round(df['Quantidade (Kg)'] * df.preco_kg / df.cambio_ars_brl, 2)
+            )
+            .rename(
+                columns = {
+                    'preco_kg':'Preço por Kg',
+                    'total_ars': 'Total (ARS)',
+                    'total_brl': 'Total (BRL)'
+                }
+            )
+            [['Nome', 'Quantidade (Kg)', 'Preço por Kg', 'Total (ARS)', 'Total (BRL)']]
         )
         st.dataframe(lista_df, hide_index = True)
 
@@ -354,5 +354,15 @@ def get_calc():
 
         # CALCULAR VALOR
         if st.session_state.calcular_valor == True:
-            valor_total = lista_df['Total'].sum().round(2)
-            st.markdown(f'Valor total a ser pago: \n$ {valor_total}')
+            valor_total_ars = lista_df['Total (ARS)'].sum().round(2)
+            valor_total_brl = lista_df['Total (BRL)'].sum().round(2)
+            st.markdown(f'Valor total a ser pago:')
+            st.markdown(
+                f"""
+                <ul>
+                    <li>$ {valor_total_ars}</li>
+                    <li>R$ {valor_total_brl}</li>
+                </ul>
+                """,
+                unsafe_allow_html=True
+            )
