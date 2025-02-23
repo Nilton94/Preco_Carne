@@ -25,6 +25,66 @@ def get_cambio():
     except Exception as e:
         return {'R$->$': 0.0}
 
+@st.cache_data(ttl = 18000, max_entries = 10)    
+def extract_data_soychu():
+    
+    r = requests.get(
+        'https://www.pollo27.com.ar/precios/', 
+        headers={'user-agent':UserAgent().get_random_user_agent(), 'encoding': 'utf-8'}
+    )
+
+    cambio = get_cambio()['R$->$']*1.13
+    
+    try:
+        table = BeautifulSoup(r.text, 'html.parser').find("table").find_all('tr')
+
+        data = [
+            {
+                'codigo': i.find_all('td')[0].text,
+                'nome_carne': i.find_all('td')[1].text,
+                'marca_carne': i.find_all('td')[2].text,
+                'tipo_carne': i.find_all('td')[3].text,
+                # 'valor_original': i.find_all('td')[4].text,
+                'moeda': re.search(r'\$|R\$', i.find_all('td')[4].text).group(0),
+                'valor_original': float(
+                    re.sub(
+                        r'\.|\$', 
+                        '', 
+                        i.find_all('td')[4].text
+                    ).replace(',', '.')
+                ),
+                'quantidade': int(
+                    re.sub(
+                        '[^0-9]',
+                        '',
+                        ''.join(re.findall(r'\d{1,}\s{0,1}KG', i.find_all('td')[1].text))
+                    )
+                    if re.findall(r'\d{1,}\s{0,1}KG', i.find_all('td')[1].text) != []
+                    else 1
+                ),
+                'cambio_ars_brl': cambio,
+                'data': str(datetime.datetime.now(tz = pytz.timezone('America/Sao_Paulo')).replace(microsecond=0).strftime('%Y-%m-%d %H:%M:%S')),
+                'ano': str(datetime.datetime.now(tz = pytz.timezone('America/Sao_Paulo')).replace(microsecond=0).year),
+                'mes': str(datetime.datetime.now(tz = pytz.timezone('America/Sao_Paulo')).replace(microsecond=0).month),
+                'dia': str(datetime.datetime.now(tz = pytz.timezone('America/Sao_Paulo')).replace(microsecond=0).day)
+            }
+
+            for i in table 
+            if i.find_all('td') != []
+        ]
+    except Exception as e:
+        print(f'Erro: {e}')
+        data = []
+
+    df = (
+        pd.DataFrame(data)
+        .assign(
+            valor_unitario = lambda x: x['valor_original']/x['quantidade']
+        )
+    )   
+
+    return df
+
 @st.cache_data(ttl = 18000, max_entries = 10)
 def get_urls():
     try:
@@ -46,14 +106,14 @@ def get_urls():
 def extracao_dados():
     '''
         ### Objetivo:
-        - Extrair dados do preço de carne do site elchañar
+        - Extrair dados do preço de carne do site elchañar e concatenar com dados do site soychu
     '''
     
     cambio = get_cambio()['R$->$']*1.13
     
     urls_dict = get_urls()
-    urls = list(urls_dict.values())
-    tipos = list(urls_dict.keys())
+    # urls = list(urls_dict.values())
+    # tipos = list(urls_dict.keys())
 
     # LISTA PARA GUARDAR OS DADOS
     dados = []
@@ -87,25 +147,42 @@ def extracao_dados():
             except:
                 nome_carne = 'Sem info'
 
+            # MARCA CARNE
+            marca_carne = 'EL CHAÑAR'
+
             # MOEDA
             try:
                 moeda = re.search(r'\$|R\$', i.find('h3').text).group(0)
             except:
                 moeda = 'Sem info'
 
-            # PRECO POR KG
+            # VALOR ORIGINAL
             try:
-                preco_kg = float(re.sub(r'\.|\$', '', i.find('h3').text).replace(',', '.'))
+                valor_original = float(re.sub(r'\.|\$', '', i.find('h3').text).replace(',', '.'))
             except:
-                preco_kg = 0
+                valor_original = 0
 
+            # QUANTIDADE
+            try:
+                quantidade = int(re.sub('[^0-9]', '', i.find('a', class_ = lambda c: c and 'text-decoration-none' in c).text)) if 'kilogramo' not in i.find('span').text.lower() else 1
+            except:
+                quantidade = 1
+
+            # VALOR UNITARIO
+            try:
+                valor_unitario = valor_original/quantidade
+            except:
+                valor_unitario = 0
 
             dados.append(
                 [
                     tipo_carne,
                     nome_carne,
+                    marca_carne,
                     moeda,
-                    preco_kg,
+                    valor_original,
+                    quantidade,
+                    valor_unitario,
                     cambio,
                     data,
                     ano,
@@ -114,33 +191,73 @@ def extracao_dados():
                 ]
             )
 
-    # DATAFRAME FINAL
-    df_carnes = pd.DataFrame(
+    # DATAFRAME EL CHAÑAR
+    df_elchanar = pd.DataFrame(
         dados,
-        columns = ['tipo_carne', 'nome_carne', 'moeda', 'preco_kg', 'cambio_ars_brl', 'data', 'ano', 'mes', 'dia']
+        columns = [
+            'tipo_carne',
+            'nome_carne',
+            'marca_carne',
+            'moeda',
+            'valor_original',
+            'quantidade',
+            'valor_unitario',
+            'cambio_ars_brl',
+            'data',
+            'ano',
+            'mes',
+            'dia'
+        ]
     )
+
+    # DATAFRAME SOYCHU
+    df_soychu = extract_data_soychu()
+
+    # DATAFRAME FINAL
+    columns = list(set(df_elchanar.columns).intersection(set(df_soychu.columns)))
+
+    df_final = pd.concat(
+        [df_elchanar[columns], df_soychu[columns]], ignore_index=True
+    )
+
+    df_final[df_final.select_dtypes(include='float').columns] = df_final.select_dtypes(include='float').round(2)
+
+    df_final = df_final[[
+        'marca_carne',
+        'tipo_carne',
+        'nome_carne',
+        'moeda',
+        'cambio_ars_brl',
+        'valor_original',
+        'quantidade',
+        'valor_unitario',
+        'dia',
+        'mes',
+        'ano',
+        'data'			
+    ]]
 
     # SALVANDO COMO PARQUET
     try:
         pq.write_to_dataset(
-            table = pa.Table.from_pandas(df_carnes),
+            table = pa.Table.from_pandas(df_final),
             root_path = os.path.join(os.getcwd(), 'data', 'bronze') if os.getcwd().__contains__('app') else os.path.join(os.getcwd(), 'app', 'data', 'bronze'),
             partition_cols = ['ano','mes'],
             # partition_filename_cb = lambda x: '-'.join(x)+'.parquet', (Não funciona com o uso o use_legacy_dataset = False, que é necessário para usar o existing_data_behaviour)
-            existing_data_behavior = 'error',
+            existing_data_behavior = 'delete_matching',
             use_legacy_dataset = False
         )
     except:
         pass
 
-    return df_carnes
+    return df_final
 
 def min_max_prices():
     
     # Obtendo os preços máximos e mínimos do dia atual
     try:
         df = extracao_dados()
-        preco_min, preco_max = df.preco_kg.min(), df.preco_kg.max()
+        preco_min, preco_max = df.valor_original.min(), df.valor_original.max()
         return preco_min, preco_max
     except:
         return None, None
