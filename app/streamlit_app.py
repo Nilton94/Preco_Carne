@@ -20,4 +20,6 @@ get_table()
 # CALCULADORA
 get_calc()
 
-st.write(os.getcwd())
+st.write(
+    os.path.join(os.getcwd(), 'data', 'bronze') if os.getcwd().__contains__('app') else os.path.join(os.getcwd(), 'app', 'data', 'bronze')
+)
