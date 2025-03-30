@@ -1,5 +1,6 @@
 # LIBS
 import pandas as pd
+import os
 import streamlit as st
 from utils.extracao_dados import extracao_dados
 from utils.utils_streamlit import get_metrics, get_widgets, get_table, get_calc, get_config
@@ -18,3 +19,5 @@ get_table()
 
 # CALCULADORA
 get_calc()
+
+st.write(os.getcwd())
