@@ -2,3 +2,8 @@
 *ipynb*
 .env
 *__pycache__*
+*.pyc
+.devcontainer
+ROADMAP.md
+.poetry/
+DOCS.md

@@ -72,11 +72,11 @@ def get_metrics():
                 path = os.path.join(os.getcwd(), 'data', 'bronze') if os.getcwd().__contains__('app') else os.path.join(os.getcwd(), 'app', 'data', 'bronze'),
                 filters = [
                     # Pega M-1
-                    # ('ano', '=', (datetime.datetime.now().replace(day = 1).date() - datetime.timedelta(days=1)).year),
-                    # ('mes', '=', (datetime.datetime.now().replace(day = 1).date() - datetime.timedelta(days=1)).month)
+                    ('ano', '=', (datetime.datetime.now().replace(day = 1).date() - datetime.timedelta(days=1)).year),
+                    ('mes', '=', (datetime.datetime.now().replace(day = 1).date() - datetime.timedelta(days=1)).month)
                     # Pega qualquer mês anterior disponível
-                    ('ano', '<=', (datetime.datetime.now().date()).year),
-                    ('mes', '<', (datetime.datetime.now().date()).month)
+                    # ('ano', '<=', (datetime.datetime.now().date()).year),
+                    # ('mes', '<', (datetime.datetime.now().date()).month)
                 ]
             )
             col1, col2, col3 = st.columns(3)
@@ -306,7 +306,18 @@ def get_table():
                     valor_unitario_brl=lambda df: round(df['valor_unitario'] / df['cambio_ars_brl'], 2)
                 )
                 .sort_values(by = ['tipo_carne', 'valor_original'], ascending = [True, False])
-                [['marca_carne','tipo_carne','nome_carne','valor_original','quantidade','valor_unitario', 'valor_original_brl', 'valor_unitario_brl', 'data']]
+                [[
+                    'marca_carne',
+                    'tipo_carne',
+                    'nome_carne',
+                    'valor_original',
+                    'quantidade',
+                    'valor_unitario', 
+                    'cambio_ars_brl', 
+                    'valor_original_brl', 
+                    'valor_unitario_brl', 
+                    'data'
+                ]]
             )
             st.session_state['tabelados'].append(df.to_dict(orient='list'))
 

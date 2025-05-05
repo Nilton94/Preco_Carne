@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import requests
 from bs4 import BeautifulSoup
 from random_user_agent.user_agent import UserAgent
@@ -8,34 +9,32 @@ import pytz
 import streamlit as st
 import pyarrow.parquet as pq
 import pyarrow as pa
-import os
+import os, logfire
+from .logger import get_logger
+from .cambio import get_cambio
 
-# Cacheando os dados carregados, com permanência de 5 hs (18000 s) e máximo de 10 entradas
+# Configs
+logger = get_logger(level='debug')
 
-def get_cambio():
 
-    try:
-        r = requests.get('https://wise.com/es/currency-converter/brl-to-ars-rate', headers={'user-agent':UserAgent().get_random_user_agent(), 'encoding': 'utf-8'})
-        tag = BeautifulSoup(r.text, 'html.parser').find('h3', 'cc__source-to-target').text
-
-        currency = re.findall(r'([\d,.]+)\s*([A-Za-z$]+)', tag)
-        final = {f'{currency[0][1]}->{currency[1][1]}': float(currency[1][0].replace(',', '.'))}
-
-        return final
-    except Exception as e:
-        return {'R$->$': 0.0}
-
-@st.cache_data(ttl = 18000, max_entries = 10)    
+# Decorator para criar spans personalizadas no logfire
+@logfire.instrument('Extraindo dados do Pollo 27!', record_return=True)
+# Cacheando os dados carregados, com permanência de 5 hs e máximo de 10 entradas
+@st.cache_data(ttl = datetime.timedelta(hours=5), max_entries = 10, show_spinner = "Extraindo dados do site Pollo 27...")    
 def extract_data_soychu():
+    
+    cambio = get_cambio()['R$->$']
+    logger.info('Pollo 27 - Iniciando a coleta de dados do site.')
     
     r = requests.get(
         'https://www.pollo27.com.ar/precios/', 
         headers={'user-agent':UserAgent().get_random_user_agent(), 'encoding': 'utf-8'}
     )
-
-    cambio = get_cambio()['R$->$']*1.13
     
+    logger.info(f'Pollo 27 - Requests retornaram o código {r.status_code}.')
+
     try:
+        logger.info('Pollo 27 - Tentando extrair dados do site.')
         table = BeautifulSoup(r.text, 'html.parser').find("table").find_all('tr')
 
         data = [
@@ -72,9 +71,13 @@ def extract_data_soychu():
             for i in table 
             if i.find_all('td') != []
         ]
+
+        logger.info(f'Pollo 27 - Dados de {len(data)} produtos foram extraídos.')
     except Exception as e:
-        print(f'Erro: {e}')
+        logger.critical(f'Pollo 27 - Erro ao extrair dados: {e}.')
         data = []
+
+    logger.info(f'Pollo 27 - Criando pandas.Dataframe com {len(data)} produtos.')
 
     df = (
         pd.DataFrame(data)
@@ -85,11 +88,15 @@ def extract_data_soychu():
 
     return df
 
-@st.cache_data(ttl = 18000, max_entries = 10)
+@logfire.instrument('Extraindo URLs do El Chañar!', record_return=True)
+@st.cache_data(ttl = datetime.timedelta(hours=5), max_entries = 10, show_spinner = "Extraindo URL's do site El Chañar...") 
 def get_urls():
+    
     try:
-        r = requests.get('https://carneselchaniar.com.ar/shop', headers={'user-agent':UserAgent().get_random_user_agent()})
+        
+        logger.info('El Chañar - Iniciando a extração de URLs do site.')
 
+        r = requests.get('https://carneselchaniar.com.ar/shop', headers={'user-agent':UserAgent().get_random_user_agent()})
         urls = [i.find('a')['href'] for i in BeautifulSoup(r.text, 'html.parser').find('div', {'class':"row rubros products-big"}) if i != '\n']
 
         final_urls = {
@@ -97,28 +104,33 @@ def get_urls():
             for url in urls
         }
 
+        logger.info('El Chañar - Extração de URLs do site concluída com sucesso.')
         return final_urls
+    
     except Exception as e:
+        logger.critical(f'El Chañar - Ocorreu um erro ao extrair as URLs: {e}')
         return f'Erro: {e}'
 
 
-@st.cache_data(ttl = 18000, max_entries = 10)
+@logfire.instrument('Extraindo dados do El Chañar!', record_return=True)
+@st.cache_data(ttl = datetime.timedelta(hours=5), max_entries = 10, show_spinner = "Extraindo dados do site El Chañar...") 
 def extracao_dados():
     '''
         ### Objetivo:
         - Extrair dados do preço de carne do site elchañar e concatenar com dados do site soychu
     '''
     
-    cambio = get_cambio()['R$->$']*1.13
-    
+    cambio = get_cambio()['R$->$']
     urls_dict = get_urls()
-    # urls = list(urls_dict.values())
-    # tipos = list(urls_dict.keys())
 
     # LISTA PARA GUARDAR OS DADOS
     dados = []
 
+    logger.info(f'El Chañar - Início da extração de dados de {len(urls_dict)} páginas.')
+
     for tipo, url in urls_dict.items():
+
+        logger.info(f'El Chañar - Iniciando processamento dos dados da carne {tipo} na URL {url}.')
 
         # REQUISICAO
         response = requests.get(url, headers={'user-agent':UserAgent().get_random_user_agent()})
@@ -129,6 +141,8 @@ def extracao_dados():
 
         for i in produtos:
         
+            logger.info(f"El Chañar - Processando dados da carne {tipo} na URL {url} - Produto {i.find('a', class_ = lambda c: c and 'text-decoration-none' in c).text}.")
+
             # VALORES DE DATA
             data = str(datetime.datetime.now(tz = pytz.timezone('America/Sao_Paulo')).replace(microsecond=0).strftime('%Y-%m-%d %H:%M:%S'))
             ano = str(datetime.datetime.now(tz = pytz.timezone('America/Sao_Paulo')).replace(microsecond=0).year)
@@ -191,7 +205,12 @@ def extracao_dados():
                 ]
             )
 
+        logger.info(f'El Chañar - Fim do processamento dos dados da carne {tipo} na URL {url}.')
+
+    logger.info(f'El Chañar - Fim da extração de dados. {len(dados)} produtos encontrados.')
+
     # DATAFRAME EL CHAÑAR
+    logger.info('El Chañar - Criação do pandas.Dataframe.')
     df_elchanar = pd.DataFrame(
         dados,
         columns = [
@@ -211,34 +230,64 @@ def extracao_dados():
     )
 
     # DATAFRAME SOYCHU
+    logger.info('Pollo 27 - Criação do pandas.Dataframe.')
     df_soychu = extract_data_soychu()
 
     # DATAFRAME FINAL
-    columns = list(set(df_elchanar.columns).intersection(set(df_soychu.columns)))
+    logger.info('Criação do pandas.Dataframe com junção dos dados do El Chañar e Pollo 27.')
+    columns = list(
+        set(df_elchanar.columns).intersection(set(df_soychu.columns))
+    )
 
     df_final = pd.concat(
-        [df_elchanar[columns], df_soychu[columns]], ignore_index=True
+        [df_elchanar[columns], df_soychu[columns]], 
+        ignore_index=True
     )
 
     df_final[df_final.select_dtypes(include='float').columns] = df_final.select_dtypes(include='float').round(2)
 
-    df_final = df_final[[
-        'marca_carne',
-        'tipo_carne',
-        'nome_carne',
-        'moeda',
-        'cambio_ars_brl',
-        'valor_original',
-        'quantidade',
-        'valor_unitario',
-        'dia',
-        'mes',
-        'ano',
-        'data'			
-    ]]
+    df_final = (
+        df_final.assign(
+            marca_carne = lambda df_: np.where(
+                df_['marca_carne'] == 'EL CHAÑAR', 
+                df_['marca_carne'], 
+                'POLLO 27'
+            ),
+            tipo_carne = lambda df_: np.select(
+                [
+                    df_['tipo_carne'].str.contains('pollo', case=False, na=False),
+                    df_['tipo_carne'].str.contains('carn', case=False, na=False),
+                    df_['tipo_carne'].notna()
+                ],
+                [
+                    'pollo',
+                    'carniceria',
+                    df_['tipo_carne']
+                ],
+                default=np.nan
+            )
+        )
+        [[
+            'marca_carne',
+            'tipo_carne',
+            'nome_carne',
+            'moeda',
+            'cambio_ars_brl',
+            'valor_original',
+            'quantidade',
+            'valor_unitario',
+            'dia',
+            'mes',
+            'ano',
+            'data'			
+        ]]
+    )
+
+    logger.info('Criação do pandas.Dataframe finalizado.')
 
     # SALVANDO COMO PARQUET
     try:
+        logger.info(f"Tentando salvar pandas.Dataframe como parquet no path {os.path.join(os.getcwd(), 'data', 'bronze') if os.getcwd().__contains__('app') else os.path.join(os.getcwd(), 'app', 'data', 'bronze')}.")
         pq.write_to_dataset(
             table = pa.Table.from_pandas(df_final),
             root_path = os.path.join(os.getcwd(), 'data', 'bronze') if os.getcwd().__contains__('app') else os.path.join(os.getcwd(), 'app', 'data', 'bronze'),
@@ -247,17 +296,27 @@ def extracao_dados():
             existing_data_behavior = 'delete_matching',
             use_legacy_dataset = False
         )
-    except:
+        logger.info(f"Dados salvos no path {os.path.join(os.getcwd(), 'data', 'bronze') if os.getcwd().__contains__('app') else os.path.join(os.getcwd(), 'app', 'data', 'bronze')}.")
+    except Exception as e:
+        logger.critical(f'Erro ao salvar o pandas.Dataframe como parquet: {e}.')
         pass
 
     return df_final
 
+@logfire.instrument('Extraindo preços máximos e mínimos!', record_return=True)
+@st.cache_data(ttl = datetime.timedelta(hours=5), max_entries = 10, show_spinner = "Extraindo preços mínimos e máximos...") 
 def min_max_prices():
     
     # Obtendo os preços máximos e mínimos do dia atual
     try:
+        logger.info('Tentando obter dados de preços máximos e mínimos.')
+
         df = extracao_dados()
         preco_min, preco_max = df.valor_original.min(), df.valor_original.max()
+
+        logger.info(f'Preços mínimos e máximos extraídos com sucesso: {preco_min}, {preco_max}.')
         return preco_min, preco_max
-    except:
+    
+    except Exception as e:
+        logger.critical(f'Erro ao obter dados de preços máximos e mínimos: {e}.')
         return None, None
