@@ -80,7 +80,8 @@ dependencies = [
     "watchdog (==3.0.0)",
     "wcwidth (==0.2.13)",
     "zipp (==3.17.0)",
-    "logfire[requests,system-metrics] (>=3.14.1,<4.0.0)"
+    "logfire[requests,system-metrics] (>=3.14.1,<4.0.0)",
+    "dotenv (>=0.9.9,<0.10.0)"
 ]
 
 
